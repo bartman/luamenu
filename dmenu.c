@@ -10,9 +10,15 @@
 #include <X11/keysym.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
-#ifdef XINERAMA
+
+#ifdef HAVE_XRENDER
+#include <X11/extensions/Xrender.h>
+#endif
+
+#ifdef HAVE_XINERAMA
 #include <X11/extensions/Xinerama.h>
 #endif
+
 
 /* macros */
 #define CLEANMASK(mask)         (mask & ~(numlockmask | LockMask))
@@ -628,7 +634,7 @@ run(void) {
 void
 setup(Bool topbar) {
 	int i, j, x, y;
-#if XINERAMA
+#if HAVE_XINERAMA
 	int n;
 	XineramaScreenInfo *info = NULL;
 #endif
@@ -660,7 +666,7 @@ setup(Bool topbar) {
 	/* menu window geometry */
 	mh = dc.font.height + 2;
 	mh = vlist ? mh * (lines+1) : mh;
-#if XINERAMA
+#if HAVE_XINERAMA
 	if(XineramaIsActive(dpy) && (info = XineramaQueryScreens(dpy, &n))) {
 		i = 0;
 		if(n > 1) {

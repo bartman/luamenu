@@ -7,21 +7,21 @@ VERSION = 4.0-vertical
 PREFIX = /usr/local
 MANPREFIX = ${PREFIX}/share/man
 
-X11INC = /usr/X11R6/include
-X11LIB = /usr/X11R6/lib
-
-# Xinerama, comment if you don't want it
-XINERAMALIBS = -L${X11LIB} -lXinerama
-XINERAMAFLAGS = -DXINERAMA
-
 # includes and libs
-INCS = -I. -I/usr/include -I${X11INC}
-LIBS = -L/usr/lib -lc -L${X11LIB} -lX11 ${XINERAMALIBS}
+INCS = -I.
+LIBS =
 
 # flags
-CPPFLAGS = -D_BSD_SOURCE -DVERSION=\"${VERSION}\" ${XINERAMAFLAGS}
-CFLAGS = -std=c99 -pedantic -Wall -Os ${INCS} ${CPPFLAGS}
-LDFLAGS = -s ${LIBS}
+CPPFLAGS = -D_BSD_SOURCE -DVERSION=\"${VERSION}\"
+CFLAGS   = -std=c99 -pedantic -Wall -Os ${INCS} ${CPPFLAGS}
+LDFLAGS  = -s ${LIBS}
+
+# packages
+PACKAGES = xft xext xrandr xrender xinerama
+
+CFLAGS  += $(foreach n,${PACKAGES}, $(shell pkg-config --exists ${n} && echo -DHAVE_${n} | tr 'a-z' 'A-Z'))
+CFLAGS  += $(foreach n,${PACKAGES}, $(shell pkg-config --cflags ${n}))
+LDFLAGS += $(foreach n,${PACKAGES}, $(shell pkg-config --libs ${n}))
 
 # Solaris
 #CFLAGS = -fast ${INCS} -DVERSION=\"${VERSION}\"
