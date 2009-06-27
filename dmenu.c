@@ -68,7 +68,7 @@ static void kpress(XKeyEvent * e);
 static void match(char *pattern);
 static void readstdin(void);
 static void run(void);
-static void setup(Bool topbar);
+static void setup(Bool topbar, int screen_hint);
 static int textnw(const char *text, unsigned int len);
 static int textw(const char *text);
 
@@ -81,7 +81,7 @@ static char text[4096];
 static int cmdw = 0;
 static int promptw = 0;
 static int ret = 0;
-static int screen;
+static int xdisplay_screen;
 static unsigned int mw, mh;
 static unsigned int numlockmask = 0;
 static Bool running = True;
@@ -316,7 +316,7 @@ eprint(const char *errstr, ...) {
 
 unsigned long
 getcolor(const char *colstr) {
-	Colormap cmap = DefaultColormap(dpy, screen);
+	Colormap cmap = DefaultColormap(dpy, xdisplay_screen);
 	XColor color;
 
 	if(!XAllocNamedColor(dpy, cmap, colstr, &color, &color))
@@ -632,7 +632,7 @@ run(void) {
 }
 
 void
-setup(Bool topbar) {
+setup(Bool topbar, int screen_hint) {
 	int i, j, x, y;
 #if HAVE_XINERAMA
 	int n;
@@ -669,7 +669,10 @@ setup(Bool topbar) {
 #if HAVE_XINERAMA
 	if(XineramaIsActive(dpy) && (info = XineramaQueryScreens(dpy, &n))) {
 		i = 0;
-		if(n > 1) {
+		if (screen_hint >= 0 && screen_hint < n) {
+			i = screen_hint;
+
+		} else if(n > 1) {
 			int di;
 			unsigned int dui;
 			Window dummy;
@@ -687,17 +690,17 @@ setup(Bool topbar) {
 #endif
 	{
 		x = 0;
-		y = topbar ? 0 : DisplayHeight(dpy, screen) - mh;
-		mw = DisplayWidth(dpy, screen);
+		y = topbar ? 0 : DisplayHeight(dpy, xdisplay_screen) - mh;
+		mw = DisplayWidth(dpy, xdisplay_screen);
 	}
 
 	win = XCreateWindow(dpy, root, x, y, mw, mh, 0,
-			DefaultDepth(dpy, screen), CopyFromParent,
-			DefaultVisual(dpy, screen),
+			DefaultDepth(dpy, xdisplay_screen), CopyFromParent,
+			DefaultVisual(dpy, xdisplay_screen),
 			CWOverrideRedirect | CWBackPixmap | CWEventMask, &wa);
 
 	/* pixmap */
-	dc.drawable = XCreatePixmap(dpy, root, mw, mh, DefaultDepth(dpy, screen));
+	dc.drawable = XCreatePixmap(dpy, root, mw, mh, DefaultDepth(dpy, xdisplay_screen));
 	dc.gc = XCreateGC(dpy, root, 0, NULL);
 	XSetLineAttributes(dpy, dc.gc, 1, LineSolid, CapButt, JoinMiter);
 	if(!dc.font.set)
@@ -735,6 +738,7 @@ int
 main(int argc, char *argv[]) {
 	unsigned int i;
 	Bool topbar = True;
+	int screen_hint = -1;
 
 	/* command line args */
 	for(i = 1; i < argc; i++)
@@ -768,6 +772,11 @@ main(int argc, char *argv[]) {
 		else if(!strcmp(argv[i], "-sf")) {
 			if(++i < argc) selfgcolor = argv[i];
 		}
+#if HAVE_XINERAMA
+		else if(!strcmp(argv[i], "-s")) {
+			if(++i < argc) screen_hint = atoi(argv[i]);
+		}
+#endif
 		else if(!strcmp(argv[i], "-v"))
 			eprint("dmenu-"VERSION", © 2006-2008 dmenu engineers, see LICENSE for details\n");
 		else
@@ -777,8 +786,8 @@ main(int argc, char *argv[]) {
 		fprintf(stderr, "warning: no locale support\n");
 	if(!(dpy = XOpenDisplay(NULL)))
 		eprint("dmenu: cannot open display\n");
-	screen = DefaultScreen(dpy);
-	root = RootWindow(dpy, screen);
+	xdisplay_screen = DefaultScreen(dpy);
+	root = RootWindow(dpy, xdisplay_screen);
 
 	if(isatty(STDIN_FILENO)) {
 		readstdin();
@@ -789,7 +798,7 @@ main(int argc, char *argv[]) {
 		readstdin();
 	}
 
-	setup(topbar);
+	setup(topbar, screen_hint);
 	drawmenu();
 	XSync(dpy, False);
 	run();
