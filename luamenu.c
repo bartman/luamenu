@@ -778,14 +778,14 @@ main(int argc, char *argv[]) {
 		}
 #endif
 		else if(!strcmp(argv[i], "-v"))
-			eprint("dmenu-"VERSION", © 2006-2008 dmenu engineers, see LICENSE for details\n");
+			eprint("luamenu-"VERSION", © 2006-2008 luamenu engineers, see LICENSE for details\n");
 		else
-			eprint("usage: dmenu [-i] [-b] [-l <lines>] [-fn <font>] [-nb <color>] [-nf <color>]\n"
+			eprint("usage: luamenu [-i] [-b] [-l <lines>] [-fn <font>] [-nb <color>] [-nf <color>]\n"
 			       "             [-p <prompt>] [-sb <color>] [-sf <color>] [-v]\n");
 	if(!setlocale(LC_CTYPE, "") || !XSupportsLocale())
 		fprintf(stderr, "warning: no locale support\n");
 	if(!(dpy = XOpenDisplay(NULL)))
-		eprint("dmenu: cannot open display\n");
+		eprint("luamenu: cannot open display\n");
 	xdisplay_screen = DefaultScreen(dpy);
 	root = RootWindow(dpy, xdisplay_screen);
 

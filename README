@@ -1,24 +1,27 @@
-dmenu - dynamic menu
-====================
-dmenu is a generic and efficient menu for X. 
+luamenu - lua scripted menu
+===========================
+luamenu is a fork of dmenu, dynamic menu for dwm, which adds lua
+scripting amongst other things.
+
+See suckless.org for more details on dmenu.
 
 
 Requirements
 ------------
-In order to build dmenu you need the Xlib header files.
+In order to build luamenu you need the Xlib header files.
 
 
 Installation
 ------------
-Edit config.mk to match your local setup (dmenu is installed into
+Edit config.mk to match your local setup (luamenu is installed into
 the /usr/local namespace by default).
 
-Afterwards enter the following command to build and install dmenu (if
+Afterwards enter the following command to build and install luamenu (if
 necessary as root):
 
     make clean install
 
 
-Running dmenu
--------------
+Running luamenu
+---------------
 See the man page for details.

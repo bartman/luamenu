@@ -1,5 +1,5 @@
 #!/bin/sh
-CACHE=$HOME/.dmenu_cache
+CACHE=$HOME/.luamenu_cache
 IFS=:
 
 uptodate() {
