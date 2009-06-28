@@ -1,0 +1,8 @@
+# temp files
+*~
+.*.swp
+
+# build files
+.*.c.dep
+*.o
+luamenu

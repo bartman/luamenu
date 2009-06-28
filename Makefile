@@ -6,9 +6,15 @@ include config.mk
 TARGET = luamenu
 
 SRC = luamenu.c
-OBJ = ${SRC:.c=.o}
+OBJ = ${SRC:%.c=%.o}
+DEP = ${SRC:%.c=.%.c.dep}
+XDEP= $(wildcard ${DEP})
 
-all: options ${TARGET}
+Q=$(if ${V},,@)
+
+all: ${TARGET}
+
+include ${XDEP}
 
 options:
 	@echo ${TARGET} build options:
@@ -16,45 +22,50 @@ options:
 	@echo "LDFLAGS  = ${LDFLAGS}"
 	@echo "CC       = ${CC}"
 
-.c.o:
-	@echo CC $<
-	@${CC} -c ${CFLAGS} $<
+${OBJ}: %.o: %.c .%.c.dep
+	@echo "  CC $<"
+	${Q} ${CC} -c ${CFLAGS} $< -o $@
+
+${DEP}: .%.c.dep: %.c Makefile
+	@echo "  DEP $<"
+	${Q} ${CC} ${CFLAGS} -MM $< > $@
+
 
 ${OBJ}: config.h config.mk
 
 ${TARGET}: ${OBJ}
-	@echo CC -o $@
-	@${CC} -o $@ ${OBJ} ${LDFLAGS}
+	@echo "  LINK $@"
+	${Q} ${CC} -o $@ ${OBJ} ${LDFLAGS}
 
 clean:
 	@echo cleaning
-	@rm -f ${TARGET} ${OBJ} ${TARGET}-${VERSION}.tar.gz
+	${Q} rm -f ${TARGET} ${OBJ} ${DEP} ${TARGET}-${VERSION}.tar.gz *~
 
 dist: clean
 	@echo creating dist tarball
-	@mkdir -p ${TARGET}-${VERSION}
-	@cp -R LICENSE Makefile README config.mk ${TARGET}.1 config.h luamenu_path luamenu_run ${SRC} ${TARGET}-${VERSION}
-	@tar -cf ${TARGET}-${VERSION}.tar ${TARGET}-${VERSION}
-	@gzip ${TARGET}-${VERSION}.tar
-	@rm -rf ${TARGET}-${VERSION}
+	${Q} mkdir -p ${TARGET}-${VERSION}
+	${Q} cp -R LICENSE Makefile README config.mk ${TARGET}.1 config.h luamenu_path luamenu_run ${SRC} ${TARGET}-${VERSION}
+	${Q} tar -cf ${TARGET}-${VERSION}.tar ${TARGET}-${VERSION}
+	${Q} gzip ${TARGET}-${VERSION}.tar
+	${Q} rm -rf ${TARGET}-${VERSION}
 
 install: all
 	@echo installing executable file to ${DESTDIR}${PREFIX}/bin
-	@mkdir -p ${DESTDIR}${PREFIX}/bin
-	@cp -f ${TARGET} luamenu_path luamenu_run ${DESTDIR}${PREFIX}/bin
-	@chmod 755 ${DESTDIR}${PREFIX}/bin/${TARGET}
-	@chmod 755 ${DESTDIR}${PREFIX}/bin/luamenu_path
-	@chmod 755 ${DESTDIR}${PREFIX}/bin/luamenu_run
-	@echo installing manual page to ${DESTDIR}${MANPREFIX}/man1
-	@mkdir -p ${DESTDIR}${MANPREFIX}/man1
-	@sed "s/VERSION/${VERSION}/g" < ${TARGET}.1 > ${DESTDIR}${MANPREFIX}/man1/${TARGET}.1
-	@chmod 644 ${DESTDIR}${MANPREFIX}/man1/${TARGET}.1
+	${Q} mkdir -p ${DESTDIR}${PREFIX}/bin
+	${Q} cp -f ${TARGET} luamenu_path luamenu_run ${DESTDIR}${PREFIX}/bin
+	${Q} chmod 755 ${DESTDIR}${PREFIX}/bin/${TARGET}
+	${Q} chmod 755 ${DESTDIR}${PREFIX}/bin/luamenu_path
+	${Q} chmod 755 ${DESTDIR}${PREFIX}/bin/luamenu_run
+	${Q} echo installing manual page to ${DESTDIR}${MANPREFIX}/man1
+	${Q} mkdir -p ${DESTDIR}${MANPREFIX}/man1
+	${Q} sed "s/VERSION/${VERSION}/g" < ${TARGET}.1 > ${DESTDIR}${MANPREFIX}/man1/${TARGET}.1
+	${Q} chmod 644 ${DESTDIR}${MANPREFIX}/man1/${TARGET}.1
 
 uninstall:
 	@echo removing executable file from ${DESTDIR}${PREFIX}/bin
-	@rm -f ${DESTDIR}${PREFIX}/bin/${TARGET} ${DESTDIR}${PREFIX}/bin/luamenu_path
-	@rm -f ${DESTDIR}${PREFIX}/bin/${TARGET} ${DESTDIR}${PREFIX}/bin/luamenu_run
-	@echo removing manual page from ${DESTDIR}${MANPREFIX}/man1
-	@rm -f ${DESTDIR}${MANPREFIX}/man1/${TARGET}.1
+	${Q} rm -f ${DESTDIR}${PREFIX}/bin/${TARGET} ${DESTDIR}${PREFIX}/bin/luamenu_path
+	${Q} rm -f ${DESTDIR}${PREFIX}/bin/${TARGET} ${DESTDIR}${PREFIX}/bin/luamenu_run
+	${Q} echo removing manual page from ${DESTDIR}${MANPREFIX}/man1
+	${Q} rm -f ${DESTDIR}${MANPREFIX}/man1/${TARGET}.1
 
 .PHONY: all options clean dist install uninstall
