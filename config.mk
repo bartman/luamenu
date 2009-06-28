@@ -16,9 +16,9 @@ CFLAGS   = -std=c99 -pedantic -Wall -Os ${INCS} ${CPPFLAGS}
 LDFLAGS  = -s ${LIBS}
 
 # packages
-PACKAGES = xft xext xrandr xrender xinerama
+PACKAGES = xft xext xrandr xrender xinerama lua5.1 lua5.1-posix
 
-CFLAGS  += $(foreach n,${PACKAGES}, $(shell pkg-config --exists ${n} && echo -DHAVE_${n} | tr 'a-z' 'A-Z'))
+CFLAGS  += $(foreach n,${PACKAGES}, $(shell pkg-config --exists ${n} && m=$$(tr 'a-z.-' 'A-Z__' <<< "${n}") && echo -DHAVE_$$m))
 CFLAGS  += $(foreach n,${PACKAGES}, $(shell pkg-config --cflags ${n}))
 LDFLAGS += $(foreach n,${PACKAGES}, $(shell pkg-config --libs ${n}))
 
