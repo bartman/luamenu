@@ -6,7 +6,8 @@ include config.mk
 TARGET = luamenu
 
 SRC = luamenu.c \
-      luamenu_util.c
+      lm_lua.c \
+      lm_util.c
 OBJ = ${SRC:%.c=%.o}
 DEP = ${SRC:%.c=.%.c.dep}
 XDEP= $(wildcard ${DEP})

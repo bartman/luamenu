@@ -1,7 +1,6 @@
 /* See LICENSE file for copyright and license details. */
 #include <ctype.h>
 #include <locale.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,7 +24,8 @@
 #include <lualib.h>
 #include <lauxlib.h>
 
-#include "luamenu_util.h"
+#include "lm_util.h"
+#include "lm_lua.h"
 
 /* macros */
 #define CLEANMASK(mask)         (mask & ~(numlockmask | LockMask))
@@ -67,7 +67,6 @@ static void cleanup(void);
 static void drawmenuh(void);
 static void drawmenuv(void);
 static void drawtext(const char *text, unsigned long col[ColLast]);
-static void eprint(const char *errstr, ...);
 static unsigned long getcolor(const char *colstr);
 static Bool grabkeyboard(void);
 static void initfont(const char *fontstr);
@@ -86,7 +85,6 @@ static char *maxname = NULL;
 static char *prompt = NULL;
 static const char *lua_code = NULL;
 static const char *lua_file = NULL;
-static lua_State *L = NULL;
 static char text[4096];
 static int cmdw = 0;
 static int promptw = 0;
@@ -314,23 +312,13 @@ drawtext(const char *text, unsigned long col[ColLast]) {
 		XDrawString(dpy, dc.drawable, dc.gc, x, y, buf, len);
 }
 
-void
-eprint(const char *errstr, ...) {
-	va_list ap;
-
-	va_start(ap, errstr);
-	vfprintf(stderr, errstr, ap);
-	va_end(ap);
-	exit(EXIT_FAILURE);
-}
-
 unsigned long
 getcolor(const char *colstr) {
 	Colormap cmap = DefaultColormap(dpy, xdisplay_screen);
 	XColor color;
 
 	if(!XAllocNamedColor(dpy, cmap, colstr, &color, &color))
-		eprint("error, cannot allocate color '%s'\n", colstr);
+		lm_die("error, cannot allocate color '%s'\n", colstr);
 	return color.pixel;
 }
 
@@ -353,7 +341,7 @@ initfont(const char *fontstr) {
 	int i, n;
 
 	if(!fontstr || fontstr[0] == '\0')
-		eprint("error, cannot load font: '%s'\n", fontstr);
+		lm_die("error, cannot load font: '%s'\n", fontstr);
 	missing = NULL;
 	dc.font.set = XCreateFontSet(dpy, fontstr, &missing, &n, &def);
 	if(missing)
@@ -376,7 +364,7 @@ initfont(const char *fontstr) {
 	else {
 		if(!(dc.font.xfont = XLoadQueryFont(dpy, fontstr))
 		&& !(dc.font.xfont = XLoadQueryFont(dpy, "fixed")))
-			eprint("error, cannot load font: '%s'\n", fontstr);
+			lm_die("error, cannot load font: '%s'\n", fontstr);
 		dc.font.ascent = dc.font.xfont->ascent;
 		dc.font.descent = dc.font.xfont->descent;
 	}
@@ -605,13 +593,13 @@ readstdin(void) {
 		if (buf[len - 1] == '\n')
 			buf[len - 1] = 0;
 		if(!(p = strdup(buf)))
-			eprint("fatal: could not strdup() %u bytes\n", strlen(buf));
+			lm_die("fatal: could not strdup() %u bytes\n", strlen(buf));
 		if(max < len) {
 			maxname = p;
 			max = len;
 		}
 		if(!(new = (Item *)malloc(sizeof(Item))))
-			eprint("fatal: could not malloc() %u bytes\n", sizeof(Item));
+			lm_die("fatal: could not malloc() %u bytes\n", sizeof(Item));
 		new->next = new->left = new->right = NULL;
 		new->text = p;
 		if(!i)
@@ -794,34 +782,29 @@ main(int argc, char *argv[]) {
 		}
 #endif
 		else if(!strcmp(argv[i], "-v"))
-			eprint("luamenu-"VERSION", © 2006-2008 luamenu engineers, see LICENSE for details\n");
+			lm_die("luamenu-"VERSION", © 2006-2008 luamenu engineers, see LICENSE for details\n");
 		else
-			eprint("usage: luamenu [-i] [-b] [-l <lines>] [ -lc <lua code> ] [ -lf <lua file> ]\n"
+			lm_die("usage: luamenu [-i] [-b] [-l <lines>] [ -lc <lua code> ] [ -lf <lua file> ]\n"
 			       "             [-fn <font>] [-nb <color>] [-nf <color>] [-p <prompt>]\n"
 			       "             [-sb <color>] [-sf <color>] [-v]\n");
 	if(!setlocale(LC_CTYPE, "") || !XSupportsLocale())
 		fprintf(stderr, "warning: no locale support\n");
 	if(!(dpy = XOpenDisplay(NULL)))
-		eprint("luamenu: cannot open display\n");
+		lm_die("luamenu: cannot open display\n");
 	xdisplay_screen = DefaultScreen(dpy);
 	root = RootWindow(dpy, xdisplay_screen);
 
+	if (lua_file && lua_code)
+		lm_die("luamenu: use only one of -lc or -lf\n");
+
 	if(lua_file || lua_code) {
-		int rc;
-
-		L = lua_open();
-		luaopen_base(L);
-
 		if (lua_file)
-			rc = luaL_dofile(L, lua_file);
+			lm_handle_lua_file(lua_file);
 		else
-			rc = luaL_dostring(L, lua_code);
-		if (rc)
-			eprint("luamenu: cannot execute lua code: %s\n",
-				lua_status_string(L));
-		exit(EXIT_SUCCESS);
+			lm_handle_lua_code(lua_code);
 	}
-	else if(isatty(STDIN_FILENO)) {
+
+	if(isatty(STDIN_FILENO)) {
 		readstdin();
 		running = grabkeyboard();
 	}
@@ -835,8 +818,7 @@ main(int argc, char *argv[]) {
 	XSync(dpy, False);
 	run();
 	cleanup();
-	if (L)
-		lua_close(L);
+	lm_lua_cleanup();
 	XCloseDisplay(dpy);
 	return ret;
 }
