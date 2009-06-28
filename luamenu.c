@@ -802,9 +802,10 @@ main(int argc, char *argv[]) {
 			lm_handle_lua_file(lua_file);
 		else
 			lm_handle_lua_code(lua_code);
-	}
 
-	if(isatty(STDIN_FILENO)) {
+		running = grabkeyboard();
+	}
+	else if(isatty(STDIN_FILENO)) {
 		readstdin();
 		running = grabkeyboard();
 	}

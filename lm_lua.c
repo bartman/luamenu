@@ -4,10 +4,18 @@
 #include <lualib.h>
 #include <lauxlib.h>
 
-static lua_State *L = NULL;
+// ------------------------------------------------------------------------
+// local helpers
+
+static lua_State *lm_lua_handle(void);
+static int lm_lua_startup(lua_State *L, int load_status);
+
+// ------------------------------------------------------------------------
+// external API
 
 const char *lua_status_string(void)
 {
+	lua_State *L = lm_lua_handle();
 	int status = lua_status(L);
 	static char buffer[128];
 	int rc;
@@ -30,36 +38,58 @@ const char *lua_status_string(void)
 
 int lm_handle_lua_file(const char *file)
 {
-	int rc;
-
-	L = lua_open();
-	luaopen_base(L);
-
-	rc = luaL_dofile(L, file);
-	if (rc) lm_die("luamenu: cannot execute lua code: %s\n",
-				lua_status_string());
-
-	return 0;
+	lua_State *L = lm_lua_handle();
+	int rc = luaL_dofile(L, file);
+	return lm_lua_startup(L, rc);
 }
 
 int lm_handle_lua_code(const char *code)
 {
-	int rc;
+	lua_State *L = lm_lua_handle();
+	int rc = luaL_dostring(L, code);
+	return lm_lua_startup(L, rc);
+}
 
-	L = lua_open();
-	luaopen_base(L);
+// ------------------------------------------------------------------------
+// handle lua state
 
-	rc = luaL_dostring(L, code);
-	if (rc) lm_die("luamenu: cannot execute lua code: %s\n",
+static lua_State *the_lua_state = NULL;
+
+static lua_State *lm_lua_handle(void)
+{
+	if (the_lua_state)
+		return the_lua_state;
+
+	the_lua_state = lua_open();
+	luaopen_base(the_lua_state);
+
+	// TODO: export various API for the lua script to manipulate our state
+	//        - override configuration
+	//        - seed initial list of commands
+	//        - bind keys to lua handler
+	//        ... etc.
+
+	return the_lua_state;
+}
+
+static int lm_lua_startup(lua_State *L, int load_status)
+{
+	if (load_status)
+		lm_die("luamenu: cannot execute lua code: %s\n",
 				lua_status_string());
+
+	// TODO: call init() in lua context, if present
 
 	return 0;
 }
 
 void lm_lua_cleanup(void)
 {
-	if (!L) return;
+	if (!the_lua_state)
+		return;
 
-	lua_close(L);
-	L = NULL;
+	// TODO: call cleanup() in lua context, if present
+
+	lua_close(the_lua_state);
+	the_lua_state = NULL;
 }
