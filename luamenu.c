@@ -19,6 +19,13 @@
 #include <X11/extensions/Xinerama.h>
 #endif
 
+#ifndef HAVE_LUA5_1
+#error cannot build without liblua5.1 package
+#endif
+#include <lualib.h>
+#include <lauxlib.h>
+
+#include "luamenu_util.h"
 
 /* macros */
 #define CLEANMASK(mask)         (mask & ~(numlockmask | LockMask))
@@ -77,6 +84,9 @@ static int textw(const char *text);
 /* variables */
 static char *maxname = NULL;
 static char *prompt = NULL;
+static const char *lua_code = NULL;
+static const char *lua_file = NULL;
+static lua_State *L = NULL;
 static char text[4096];
 static int cmdw = 0;
 static int promptw = 0;
@@ -772,6 +782,12 @@ main(int argc, char *argv[]) {
 		else if(!strcmp(argv[i], "-sf")) {
 			if(++i < argc) selfgcolor = argv[i];
 		}
+		else if(!strcmp(argv[i], "-lc")) {
+			if(++i < argc) lua_code = argv[i];
+		}
+		else if(!strcmp(argv[i], "-lf")) {
+			if(++i < argc) lua_file = argv[i];
+		}
 #if HAVE_XINERAMA
 		else if(!strcmp(argv[i], "-s")) {
 			if(++i < argc) screen_hint = atoi(argv[i]);
@@ -780,8 +796,9 @@ main(int argc, char *argv[]) {
 		else if(!strcmp(argv[i], "-v"))
 			eprint("luamenu-"VERSION", © 2006-2008 luamenu engineers, see LICENSE for details\n");
 		else
-			eprint("usage: luamenu [-i] [-b] [-l <lines>] [-fn <font>] [-nb <color>] [-nf <color>]\n"
-			       "             [-p <prompt>] [-sb <color>] [-sf <color>] [-v]\n");
+			eprint("usage: luamenu [-i] [-b] [-l <lines>] [ -lc <lua code> ] [ -lf <lua file> ]\n"
+			       "             [-fn <font>] [-nb <color>] [-nf <color>] [-p <prompt>]\n"
+			       "             [-sb <color>] [-sf <color>] [-v]\n");
 	if(!setlocale(LC_CTYPE, "") || !XSupportsLocale())
 		fprintf(stderr, "warning: no locale support\n");
 	if(!(dpy = XOpenDisplay(NULL)))
@@ -789,7 +806,22 @@ main(int argc, char *argv[]) {
 	xdisplay_screen = DefaultScreen(dpy);
 	root = RootWindow(dpy, xdisplay_screen);
 
-	if(isatty(STDIN_FILENO)) {
+	if(lua_file || lua_code) {
+		int rc;
+
+		L = lua_open();
+		luaopen_base(L);
+
+		if (lua_file)
+			rc = luaL_dofile(L, lua_file);
+		else
+			rc = luaL_dostring(L, lua_code);
+		if (rc)
+			eprint("luamenu: cannot execute lua code: %s\n",
+				lua_status_string(L));
+		exit(EXIT_SUCCESS);
+	}
+	else if(isatty(STDIN_FILENO)) {
 		readstdin();
 		running = grabkeyboard();
 	}
@@ -803,6 +835,8 @@ main(int argc, char *argv[]) {
 	XSync(dpy, False);
 	run();
 	cleanup();
+	if (L)
+		lua_close(L);
 	XCloseDisplay(dpy);
 	return ret;
 }
