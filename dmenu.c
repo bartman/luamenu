@@ -47,10 +47,12 @@ struct Item {
 
 /* forward declarations */
 static void appenditem(Item *i, Item **list, Item **last);
-static void calcoffsets(void);
+static void calcoffsetsh(void);
+static void calcoffsetsv(void);
 static char *cistrstr(const char *s, const char *sub);
 static void cleanup(void);
-static void drawmenu(void);
+static void drawmenuh(void);
+static void drawmenuv(void);
 static void drawtext(const char *text, unsigned long col[ColLast]);
 static void eprint(const char *errstr, ...);
 static unsigned long getcolor(const char *colstr);
@@ -88,6 +90,10 @@ static Item *curr = NULL;
 static Window root, win;
 static int (*fstrncmp)(const char *, const char *, size_t n) = strncmp;
 static char *(*fstrstr)(const char *, const char *) = strstr;
+static Bool vlist = False;
+static unsigned int lines = 0;
+static void (*calcoffsets)(void) = calcoffsetsh;
+static void (*drawmenu)(void) = drawmenuh;
 
 void
 appenditem(Item *i, Item **list, Item **last) {
@@ -101,7 +107,7 @@ appenditem(Item *i, Item **list, Item **last) {
 }
 
 void
-calcoffsets(void) {
+calcoffsetsh(void) {
 	int tw;
 	unsigned int w;
 
@@ -123,6 +129,26 @@ calcoffsets(void) {
 			tw = mw / 3;
 		w += tw;
 		if(w > mw)
+			break;
+	}
+}
+
+void
+calcoffsetsv(void) {
+	static unsigned int w;
+
+	if(!curr)
+		return;
+	w = (dc.font.height + 2) * (lines + 1);
+	for(next = curr; next; next=next->right) {
+		w -= dc.font.height + 2;
+		if(w <= 0)
+			break;
+	}
+	w = (dc.font.height + 2) * (lines + 1);
+	for(prev = curr; prev && prev->left; prev=prev->left) {
+		w -= dc.font.height + 2;
+		if(w <= 0)
 			break;
 	}
 }
@@ -171,7 +197,7 @@ cleanup(void) {
 }
 
 void
-drawmenu(void) {
+drawmenuh(void) {
 	Item *i;
 
 	dc.x = 0;
@@ -212,6 +238,39 @@ drawmenu(void) {
 }
 
 void
+drawmenuv(void) {
+	Item *i;
+
+	dc.x = 0;
+	dc.y = 0;
+	dc.w = mw;
+	dc.h = mh;
+	drawtext(NULL, dc.norm);
+	/* print prompt? */
+	if(promptw) {
+		dc.w = promptw;
+		drawtext(prompt, dc.sel);
+	}
+	dc.x += promptw;
+	dc.w = mw - promptw;
+	/* print command */
+	drawtext(text[0] ? text : NULL, dc.norm);
+	if(curr) {
+		dc.x = 0;
+		dc.w = mw;
+		dc.y += dc.font.height + 2;
+		/* determine maximum items */
+		for(i = curr; i != next; i=i->right) {
+			drawtext(i->text, (sel == i) ? dc.sel : dc.norm);
+			dc.y += dc.font.height + 2;
+		}
+		drawtext(NULL, dc.norm);
+	}
+	XCopyArea(dpy, dc.drawable, win, dc.gc, 0, 0, mw, mh, 0, 0);
+	XFlush(dpy);
+}
+
+void
 drawtext(const char *text, unsigned long col[ColLast]) {
 	char buf[256];
 	int i, x, y, h, len, olen;
@@ -222,8 +281,8 @@ drawtext(const char *text, unsigned long col[ColLast]) {
 	if(!text)
 		return;
 	olen = strlen(text);
-	h = dc.font.ascent + dc.font.descent;
-	y = dc.y + (dc.h / 2) - (h / 2) + dc.font.ascent;
+	h = dc.font.height;
+	y = dc.y + ((h+2) / 2) - (h / 2) + dc.font.ascent;
 	x = dc.x + (h / 2);
 	/* shorten text if necessary */
 	for(len = MIN(olen, sizeof buf); len && textnw(text, len) > dc.w - h; len--);
@@ -426,6 +485,7 @@ kpress(XKeyEvent * e) {
 		calcoffsets();
 		break;
 	case XK_Left:
+	case XK_Up:
 		if(!(sel && sel->left))
 			return;
 		sel=sel->left;
@@ -457,6 +517,7 @@ kpress(XKeyEvent * e) {
 		running = False;
 		break;
 	case XK_Right:
+	case XK_Down:
 		if(!(sel && sel->right))
 			return;
 		sel=sel->right;
@@ -598,6 +659,7 @@ setup(Bool topbar) {
 
 	/* menu window geometry */
 	mh = dc.font.height + 2;
+	mh = vlist ? mh * (lines+1) : mh;
 #if XINERAMA
 	if(XineramaIsActive(dpy) && (info = XineramaQueryScreens(dpy, &n))) {
 		i = 0;
@@ -676,6 +738,12 @@ main(int argc, char *argv[]) {
 		}
 		else if(!strcmp(argv[i], "-b"))
 			topbar = False;
+		else if(!strcmp(argv[i], "-l")) {
+			vlist = True;
+			calcoffsets = calcoffsetsv;
+			drawmenu = drawmenuv;
+			if(++i < argc) lines += atoi(argv[i]);
+		}
 		else if(!strcmp(argv[i], "-fn")) {
 			if(++i < argc) font = argv[i];
 		}
@@ -697,7 +765,7 @@ main(int argc, char *argv[]) {
 		else if(!strcmp(argv[i], "-v"))
 			eprint("dmenu-"VERSION", © 2006-2008 dmenu engineers, see LICENSE for details\n");
 		else
-			eprint("usage: dmenu [-i] [-b] [-fn <font>] [-nb <color>] [-nf <color>]\n"
+			eprint("usage: dmenu [-i] [-b] [-l <lines>] [-fn <font>] [-nb <color>] [-nf <color>]\n"
 			       "             [-p <prompt>] [-sb <color>] [-sf <color>] [-v]\n");
 	if(!setlocale(LC_CTYPE, "") || !XSupportsLocale())
 		fprintf(stderr, "warning: no locale support\n");

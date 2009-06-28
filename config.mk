@@ -1,5 +1,5 @@
 # dmenu version
-VERSION = 4.0
+VERSION = 4.0-vertical
 
 # Customize below to fit your system
 
