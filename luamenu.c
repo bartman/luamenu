@@ -26,6 +26,7 @@
 
 #include "lm_util.h"
 #include "lm_lua.h"
+#include "lm_items.h"
 
 /* macros */
 #define CLEANMASK(mask)         (mask & ~(numlockmask | LockMask))
@@ -51,15 +52,7 @@ typedef struct {
 	} font;
 } DC; /* draw context */
 
-typedef struct Item Item;
-struct Item {
-	char *text;
-	Item *next;		/* traverses all items */
-	Item *left, *right;	/* traverses items matching current search pattern */
-};
-
 /* forward declarations */
-static void appenditem(Item *i, Item **list, Item **last);
 static void calcoffsetsh(void);
 static void calcoffsetsv(void);
 static char *cistrstr(const char *s, const char *sub);
@@ -71,7 +64,6 @@ static unsigned long getcolor(const char *colstr);
 static Bool grabkeyboard(void);
 static void initfont(const char *fontstr);
 static void kpress(XKeyEvent * e);
-static void match(char *pattern);
 static void readstdin(void);
 static void run(void);
 static void setup(Bool topbar, int screen_hint);
@@ -95,30 +87,11 @@ static unsigned int numlockmask = 0;
 static Bool running = True;
 static Display *dpy;
 static DC dc;
-static Item *allitems = NULL;	/* first of all items */
-static Item *item = NULL;	/* first of pattern matching items */
-static Item *sel = NULL;
-static Item *next = NULL;
-static Item *prev = NULL;
-static Item *curr = NULL;
 static Window root, win;
-static int (*fstrncmp)(const char *, const char *, size_t n) = strncmp;
-static char *(*fstrstr)(const char *, const char *) = strstr;
 static Bool vlist = False;
 static unsigned int lines = 0;
 static void (*calcoffsets)(void) = calcoffsetsh;
 static void (*drawmenu)(void) = drawmenuh;
-
-void
-appenditem(Item *i, Item **list, Item **last) {
-	if(!(*last))
-		*list = i;
-	else
-		(*last)->right = i;
-	i->left = *last;
-	i->right = NULL;
-	*last = i;
-}
 
 void
 calcoffsetsh(void) {
@@ -414,7 +387,8 @@ kpress(XKeyEvent * e) {
 		case XK_u:
 		case XK_U:
 			text[0] = 0;
-			match(text);
+			lm_build_matches(text);
+			calcoffsets();
 			drawmenu();
 			return;
 		case XK_w:
@@ -425,7 +399,8 @@ kpress(XKeyEvent * e) {
 					text[i--] = 0;
 				while(i >= 0 && text[i] != ' ')
 					text[i--] = 0;
-				match(text);
+				lm_build_matches(text);
+				calcoffsets();
 				drawmenu();
 			}
 			return;
@@ -459,13 +434,15 @@ kpress(XKeyEvent * e) {
 		if(num && !iscntrl((int) buf[0])) {
 			buf[num] = 0;
 			strncpy(text + len, buf, sizeof text - len);
-			match(text);
+			lm_build_matches(text);
+			calcoffsets();
 		}
 		break;
 	case XK_BackSpace:
 		if(len) {
 			text[--len] = 0;
-			match(text);
+			lm_build_matches(text);
+			calcoffsets();
 		}
 		break;
 	case XK_End:
@@ -534,51 +511,11 @@ kpress(XKeyEvent * e) {
 		if(!sel)
 			return;
 		strncpy(text, sel->text, sizeof text);
-		match(text);
+		lm_build_matches(text);
+		calcoffsets();
 		break;
 	}
 	drawmenu();
-}
-
-void
-match(char *pattern) {
-	unsigned int plen;
-	Item *i, *itemend, *lexact, *lprefix, *lsubstr, *exactend, *prefixend, *substrend;
-
-	if(!pattern)
-		return;
-	plen = strlen(pattern);
-	item = lexact = lprefix = lsubstr = itemend = exactend = prefixend = substrend = NULL;
-	for(i = allitems; i; i = i->next)
-		if(!fstrncmp(pattern, i->text, plen + 1))
-			appenditem(i, &lexact, &exactend);
-		else if(!fstrncmp(pattern, i->text, plen))
-			appenditem(i, &lprefix, &prefixend);
-		else if(fstrstr(i->text, pattern))
-			appenditem(i, &lsubstr, &substrend);
-	if(lexact) {
-		item = lexact;
-		itemend = exactend;
-	}
-	if(lprefix) {
-		if(itemend) {
-			itemend->right = lprefix;
-			lprefix->left = itemend;
-		}
-		else
-			item = lprefix;
-		itemend = prefixend;
-	}
-	if(lsubstr) {
-		if(itemend) {
-			itemend->right = lsubstr;
-			lsubstr->left = itemend;
-		}
-		else
-			item = lsubstr;
-	}
-	curr = prev = next = sel = item;
-	calcoffsets();
 }
 
 void
@@ -712,7 +649,8 @@ setup(Bool topbar, int screen_hint) {
 	if(promptw > mw / 5)
 		promptw = mw / 5;
 	text[0] = 0;
-	match(text);
+	lm_build_matches(text);
+	calcoffsets();
 	XMapRaised(dpy, win);
 }
 
