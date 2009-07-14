@@ -2,10 +2,20 @@
 -- menu for uzbl window manager
 
 local commands = {
-        ['open']    = cmd_open,
-        ['tabopen'] = cmd_tabopen,
+        open = {
+                command = cmd_open,
+                complete = open_tab_handler,
+        },
+        tabopen = {
+                command = cmd_tabopen,
+                complete = open_tab_handler,
+        },
 }
 local command_names = {'open', 'tabopen'}
+
+local function is_command(name)
+        return 
+end
 
 -- returns the URLs from uzbl history
 local function url_history()
@@ -20,7 +30,7 @@ local function tab_handler (ev)
                 luamenu.words = command_names
         elseif ev.cmd_index == 1 then
                 luamenu.words = command_names + url_history()
-        elseif ev.cmd_index > 2 and is_keyword(ev.cmd[1]) then
+        elseif ev.cmd_index > 2 and is_command(ev.cmd[1]) then
                 luamenu.words = arg_history()
         end
 end
@@ -30,6 +40,10 @@ function init ()
         luamenu.lines  = 2
         luamenu.words  = command_names
         luamenu.bind('Tab', tab_handler)
+end
+
+function arg ()
+        -- handle -la command line arguments
 end
 
 function cleanup ()
