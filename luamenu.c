@@ -75,8 +75,6 @@ static int textw(const char *text);
 /* variables */
 static char *maxname = NULL;
 static char *prompt = NULL;
-static const char *lua_code = NULL;
-static const char *lua_file = NULL;
 static char text[4096];
 static int cmdw = 0;
 static int promptw = 0;
@@ -708,11 +706,17 @@ main(int argc, char *argv[]) {
 		else if(!strcmp(argv[i], "-sf")) {
 			if(++i < argc) selfgcolor = argv[i];
 		}
+		else if(!strcmp(argv[i], "-la")) {
+			if(++i < argc)
+				lm_handle_lua_arg_arg(argv[i]);
+		}
 		else if(!strcmp(argv[i], "-lc")) {
-			if(++i < argc) lua_code = argv[i];
+			if(++i < argc)
+				lm_handle_lua_code_arg(argv[i]);
 		}
 		else if(!strcmp(argv[i], "-lf")) {
-			if(++i < argc) lua_file = argv[i];
+			if(++i < argc)
+				lm_handle_lua_file_arg(argv[i]);
 		}
 #if HAVE_XINERAMA
 		else if(!strcmp(argv[i], "-s")) {
@@ -722,9 +726,9 @@ main(int argc, char *argv[]) {
 		else if(!strcmp(argv[i], "-v"))
 			lm_die("luamenu-"VERSION", © 2006-2008 luamenu engineers, see LICENSE for details\n");
 		else
-			lm_die("usage: luamenu [-i] [-b] [-l <lines>] [ -lc <lua code> ] [ -lf <lua file> ]\n"
-			       "             [-fn <font>] [-nb <color>] [-nf <color>] [-p <prompt>]\n"
-			       "             [-sb <color>] [-sf <color>] [-v]\n");
+			lm_die("usage: luamenu [-i] [-b] [-l <lines>] [ -la <lua-arg> ] [ -lc <lua code> ]\n"
+			       "             [ -lf <lua file> ] [-fn <font>] [-nb <color>] [-nf <color>]\n"
+			       "             [-p <prompt>] [-sb <color>] [-sf <color>] [-v]\n");
 	if(!setlocale(LC_CTYPE, "") || !XSupportsLocale())
 		fprintf(stderr, "warning: no locale support\n");
 	if(!(dpy = XOpenDisplay(NULL)))
@@ -732,14 +736,7 @@ main(int argc, char *argv[]) {
 	xdisplay_screen = DefaultScreen(dpy);
 	root = RootWindow(dpy, xdisplay_screen);
 
-	if (lua_file && lua_code)
-		lm_die("luamenu: use only one of -lc or -lf\n");
-
-	if(lua_file || lua_code) {
-		if (lua_file)
-			lm_handle_lua_file(lua_file);
-		else
-			lm_handle_lua_code(lua_code);
+	if(lm_is_lua_running()) {
 
 		running = grabkeyboard();
 	}

@@ -8,12 +8,15 @@
 // local helpers
 
 static lua_State *lm_lua_handle(void);
-static int lm_lua_startup(lua_State *L, int load_status);
+static void lm_lua_startup(lua_State *L, int load_status);
+
+// avoid using directly, see lm_lua_handle()
+static lua_State *the_lua_state = NULL;
 
 // ------------------------------------------------------------------------
 // external API
 
-const char *lua_status_string(void)
+const char *lm_lua_status_string(void)
 {
 	lua_State *L = lm_lua_handle();
 	int status = lua_status(L);
@@ -36,24 +39,38 @@ const char *lua_status_string(void)
 	return buffer;
 }
 
-int lm_handle_lua_file(const char *file)
+void lm_handle_lua_file_arg(const char *file)
 {
 	lua_State *L = lm_lua_handle();
 	int rc = luaL_dofile(L, file);
-	return lm_lua_startup(L, rc);
+	lm_lua_startup(L, rc);
 }
 
-int lm_handle_lua_code(const char *code)
+void lm_handle_lua_code_arg(const char *code)
 {
 	lua_State *L = lm_lua_handle();
 	int rc = luaL_dostring(L, code);
-	return lm_lua_startup(L, rc);
+	lm_lua_startup(L, rc);
+}
+
+void lm_handle_lua_arg_arg(const char *text)
+{
+	if (!the_lua_state)
+		lm_die("luamenu: arguments to lua script need to be passed "
+			"after the luascript\n");
+
+	// TODO: call arg() in lua context, fail if not available
+
+	return;
+}
+
+bool lm_is_lua_running(void)
+{
+	return the_lua_state != NULL;
 }
 
 // ------------------------------------------------------------------------
 // handle lua state
-
-static lua_State *the_lua_state = NULL;
 
 static lua_State *lm_lua_handle(void)
 {
@@ -72,15 +89,16 @@ static lua_State *lm_lua_handle(void)
 	return the_lua_state;
 }
 
-static int lm_lua_startup(lua_State *L, int load_status)
+static void lm_lua_startup(lua_State *L, int load_status)
 {
-	if (load_status)
-		lm_die("luamenu: cannot execute lua code: %s\n",
-				lua_status_string());
+	if (load_status) {
+		const char *str = lua_tostring(L, -1);
+		lm_die("luamenu: cannot execute lua code: %s\n", str);
+	}
 
 	// TODO: call init() in lua context, if present
 
-	return 0;
+	return;
 }
 
 void lm_lua_cleanup(void)
