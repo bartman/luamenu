@@ -3,15 +3,22 @@
 
 #include <lualib.h>
 #include <lauxlib.h>
+#include <stdarg.h>
 
 // ------------------------------------------------------------------------
 // local helpers
 
 static lua_State *lm_lua_handle(void);
-static void lm_lua_startup(lua_State *L, int load_status);
+static void lm_lua_startup(lua_State *L);
 
 // avoid using directly, see lm_lua_handle()
 static lua_State *the_lua_state = NULL;
+
+#define lm_lua_error(L,fmt,...) do { \
+	const char *__str = lua_tostring(L, -1); \
+	lm_die("luamenu: "fmt": %s\n", ##__VA_ARGS__, __str); \
+} while(0)
+
 
 // ------------------------------------------------------------------------
 // external API
@@ -42,22 +49,32 @@ const char *lm_lua_status_string(void)
 void lm_handle_lua_file_arg(const char *file)
 {
 	lua_State *L = lm_lua_handle();
-	int rc = luaL_dofile(L, file);
-	lm_lua_startup(L, rc);
+	if (luaL_dofile(L, file))
+		lm_lua_error(L, "cannot execute lua file");
+	lm_lua_startup(L);
 }
 
 void lm_handle_lua_code_arg(const char *code)
 {
 	lua_State *L = lm_lua_handle();
-	int rc = luaL_dostring(L, code);
-	lm_lua_startup(L, rc);
+	if (luaL_dostring(L, code))
+		lm_lua_error(L, "cannot execute lua code");
+	lm_lua_startup(L);
 }
 
 void lm_handle_lua_arg_arg(const char *text)
 {
+	int rc;
+	lua_State *L;
 	if (!the_lua_state)
 		lm_die("luamenu: arguments to lua script need to be passed "
 			"after the luascript\n");
+
+	L = lm_lua_handle();
+	lua_pushstring(L, text);
+	rc = lua_pcall(L, 1, 0, 0);
+	if (rc)
+		lm_lua_error(L, "failed to handle argument '%s'", text);
 
 	// TODO: call arg() in lua context, fail if not available
 
@@ -89,13 +106,8 @@ static lua_State *lm_lua_handle(void)
 	return the_lua_state;
 }
 
-static void lm_lua_startup(lua_State *L, int load_status)
+static void lm_lua_startup(lua_State *L)
 {
-	if (load_status) {
-		const char *str = lua_tostring(L, -1);
-		lm_die("luamenu: cannot execute lua code: %s\n", str);
-	}
-
 	// TODO: call init() in lua context, if present
 
 	return;
