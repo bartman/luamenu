@@ -42,11 +42,13 @@ function init ()
         luamenu.bind('Tab', tab_handler)
 end
 
-function arg ()
+function arg (text)
         -- handle -la command line arguments
+        print("arg: " .. tostring(text))
+        local k, v = string.match(text, "^(.*)=(.*)$")
+        print("arg[" .. tostring(k) .. "] = '" .. tostring(v) .. "'")
 end
 
 function cleanup ()
         -- for writing back any history files
 end
-

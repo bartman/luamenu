@@ -66,17 +66,22 @@ void lm_handle_lua_arg_arg(const char *text)
 {
 	int rc;
 	lua_State *L;
+
 	if (!the_lua_state)
 		lm_die("luamenu: arguments to lua script need to be passed "
 			"after the luascript\n");
 
 	L = lm_lua_handle();
+	lua_getglobal(L, "arg");
+	if (!lua_isfunction(L, -1))
+		lm_die("luamenu: the lua context does not have an arg() function\n");
+
 	lua_pushstring(L, text);
 	rc = lua_pcall(L, 1, 0, 0);
 	if (rc)
 		lm_lua_error(L, "failed to handle argument '%s'", text);
 
-	// TODO: call arg() in lua context, fail if not available
+	lua_pop(L, -1);
 
 	return;
 }
@@ -94,8 +99,8 @@ static lua_State *lm_lua_handle(void)
 	if (the_lua_state)
 		return the_lua_state;
 
-	the_lua_state = lua_open();
-	luaopen_base(the_lua_state);
+	the_lua_state = luaL_newstate();
+	luaL_openlibs(the_lua_state);
 
 	// TODO: export various API for the lua script to manipulate our state
 	//        - override configuration
