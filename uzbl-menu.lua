@@ -36,7 +36,7 @@ local function tab_handler (ev)
 end
 
 function init ()
-        luamenu.prmopt = 'uzbl:'
+        luamenu.prompt = 'uzbl:'
         luamenu.lines  = 2
         luamenu.words  = command_names
         luamenu.bind('Tab', tab_handler)

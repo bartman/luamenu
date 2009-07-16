@@ -8,7 +8,8 @@ TARGET = luamenu
 SRC = luamenu.c \
       lm_lua.c \
       lm_util.c \
-      lm_items.c
+      lm_items.c \
+      lm_conf.c
 OBJ = ${SRC:%.c=%.o}
 DEP = ${SRC:%.c=.%.c.dep}
 XDEP= $(wildcard ${DEP})

@@ -1,5 +1,6 @@
 #include "lm_lua.h"
 #include "lm_util.h"
+#include "lm_conf.h"
 
 #include <lualib.h>
 #include <lauxlib.h>
@@ -9,7 +10,9 @@
 // ------------------------------------------------------------------------
 // local helpers
 
+static int lm_stack_sprint_value (char *buffer, int blen, lua_State *L, int);
 static void lm_stack_dump (const char *prefix, lua_State *L);
+
 static lua_State *lm_lua_handle(void);
 static void lm_lua_startup(lua_State *L);
 
@@ -94,15 +97,129 @@ bool lm_is_lua_running(void)
 }
 
 // ------------------------------------------------------------------------
+// exported luamenu table to lua
+
+#if 0
+static int lm_luamenu_tostring(lua_State *L)
+{
+	fprintf(stderr, "%s\n", __FUNCTION__);
+	return 0;
+}
+static int lm_luamenu_gc(lua_State *L)
+{
+	fprintf(stderr, "%s\n", __FUNCTION__);
+	return 0;
+}
+#endif
+
+static int lm_luamenu_index(lua_State *L)
+{
+	fprintf(stderr, "%s\n", __FUNCTION__);
+	return 0;
+}
+
+/* called to handle table.member = value
+ * stack[-3] = table
+ * stack[-2] = member
+ * stack[-1] = value */
+static int lm_luamenu_newindex(lua_State *L)
+{
+	const char *member = luaL_checkstring(L, -2);
+	char strv[128];
+	lm_stack_sprint_value(strv, sizeof strv, L, -1);
+	fprintf(stderr, "%s '%s' = %s\n", __FUNCTION__, member, strv);
+
+	if (!strcmp(member, "prompt")) {
+
+		const char *val = luaL_checkstring(L, -1);
+
+		free(conf.prompt);
+		conf.prompt = strdup(val);
+
+	} else if (!strcmp(member, "lines")) {
+
+		unsigned int val = luaL_checknumber(L, -1);
+
+		conf.lines = val;
+
+
+	} else if (!strcmp(member, "words")) {
+
+	}
+
+	lm_stack_dump("# new ", L);
+	return 0;
+}
+
+static int lm_luamenu_prompt(lua_State *L)
+{
+	fprintf(stderr, "%s\n", __FUNCTION__);
+	return 0;
+}
+
+static int lm_luamenu_lines(lua_State *L)
+{
+	fprintf(stderr, "%s\n", __FUNCTION__);
+	return 0;
+}
+
+static int lm_luamenu_words(lua_State *L)
+{
+	fprintf(stderr, "%s\n", __FUNCTION__);
+	return 0;
+}
+
+static int lm_luamenu_bind(lua_State *L)
+{
+	fprintf(stderr, "%s\n", __FUNCTION__);
+	return 0;
+}
+
+static const luaL_reg luamenu_var_table[] =
+{
+	{ "prompt",     lm_luamenu_prompt   },
+	{ "lines",      lm_luamenu_lines    },
+	{ "words",      lm_luamenu_words    },
+};
+static const luaL_reg luamenu_func_table[] =
+{
+#if 0
+	{ "__tostring", lm_luamenu_tostring },
+	{ "__gc",       lm_luamenu_gc       },
+#endif
+	{ "bind",       lm_luamenu_bind     },
+	{ NULL,         NULL },
+};
+
+// ------------------------------------------------------------------------
 // handle lua state
 
 static lua_State *lm_lua_handle(void)
 {
+	lua_State *L;
+
 	if (the_lua_state)
 		return the_lua_state;
 
-	the_lua_state = luaL_newstate();
-	luaL_openlibs(the_lua_state);
+
+	L = luaL_newstate();
+	luaL_openlibs(L);
+
+	luaL_openlib (L, "luamenu", luamenu_func_table, 0);
+
+	luaL_newmetatable(L, "luamenu.luamenu_mt");
+
+	lua_pushstring(L, "__index");
+	lua_pushcfunction(L, lm_luamenu_index);
+	lua_settable(L, -3);  // metatable_mt.__index = lm_luamenu_index
+
+	lua_pushstring(L, "__newindex");
+	lua_pushcfunction(L, lm_luamenu_newindex);
+	lua_settable(L, -3);  // metatable_mt.__newindex = lm_luamenu_newindex
+
+lm_stack_dump ("# luamenu: ", L);
+
+	lua_setmetatable(L, -2); // setmetatable(luamenu, luamenu_mt)
 
 	// TODO: export various API for the lua script to manipulate our state
 	//        - override configuration
@@ -110,7 +227,10 @@ static lua_State *lm_lua_handle(void)
 	//        - bind keys to lua handler
 	//        ... etc.
 
-	return the_lua_state;
+
+	lua_settop(L, 0);
+	the_lua_state = L;
+	return L;
 }
 
 static void lm_lua_startup(lua_State *L)

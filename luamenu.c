@@ -27,6 +27,7 @@
 #include "lm_util.h"
 #include "lm_lua.h"
 #include "lm_items.h"
+#include "lm_conf.h"
 
 /* macros */
 #define CLEANMASK(mask)         (mask & ~(numlockmask | LockMask))
@@ -74,7 +75,6 @@ static int textw(const char *text);
 
 /* variables */
 static char *maxname = NULL;
-static char *prompt = NULL;
 static char text[4096];
 static int cmdw = 0;
 static int promptw = 0;
@@ -87,7 +87,6 @@ static Display *dpy;
 static DC dc;
 static Window root, win;
 static Bool vlist = False;
-static unsigned int lines = 0;
 static void (*calcoffsets)(void) = calcoffsetsh;
 static void (*drawmenu)(void) = drawmenuh;
 
@@ -124,13 +123,13 @@ calcoffsetsv(void) {
 
 	if(!curr)
 		return;
-	w = (dc.font.height + 2) * (lines + 1);
+	w = (dc.font.height + 2) * (conf.lines + 1);
 	for(next = curr; next; next=next->right) {
 		w -= dc.font.height + 2;
 		if(w <= 0)
 			break;
 	}
-	w = (dc.font.height + 2) * (lines + 1);
+	w = (dc.font.height + 2) * (conf.lines + 1);
 	for(prev = curr; prev && prev->left; prev=prev->left) {
 		w -= dc.font.height + 2;
 		if(w <= 0)
@@ -193,7 +192,7 @@ drawmenuh(void) {
 	/* print prompt? */
 	if(promptw) {
 		dc.w = promptw;
-		drawtext(prompt, dc.sel);
+		drawtext(conf.prompt, dc.sel);
 	}
 	dc.x += promptw;
 	dc.w = mw - promptw;
@@ -234,7 +233,7 @@ drawmenuv(void) {
 	/* print prompt? */
 	if(promptw) {
 		dc.w = promptw;
-		drawtext(prompt, dc.sel);
+		drawtext(conf.prompt, dc.sel);
 	}
 	dc.x += promptw;
 	dc.w = mw - promptw;
@@ -598,7 +597,7 @@ setup(Bool topbar, int screen_hint) {
 
 	/* menu window geometry */
 	mh = dc.font.height + 2;
-	mh = vlist ? mh * (lines+1) : mh;
+	mh = vlist ? mh * (conf.lines+1) : mh;
 #if HAVE_XINERAMA
 	if(XineramaIsActive(dpy) && (info = XineramaQueryScreens(dpy, &n))) {
 		i = 0;
@@ -642,8 +641,8 @@ setup(Bool topbar, int screen_hint) {
 		cmdw = textw(maxname);
 	if(cmdw > mw / 3)
 		cmdw = mw / 3;
-	if(prompt)
-		promptw = textw(prompt);
+	if(conf.prompt)
+		promptw = textw(conf.prompt);
 	if(promptw > mw / 5)
 		promptw = mw / 5;
 	text[0] = 0;
@@ -686,7 +685,7 @@ main(int argc, char *argv[]) {
 			vlist = True;
 			calcoffsets = calcoffsetsv;
 			drawmenu = drawmenuv;
-			if(++i < argc) lines += atoi(argv[i]);
+			if(++i < argc) conf.lines += atoi(argv[i]);
 		}
 		else if(!strcmp(argv[i], "-fn")) {
 			if(++i < argc) font = argv[i];
@@ -698,7 +697,7 @@ main(int argc, char *argv[]) {
 			if(++i < argc) normfgcolor = argv[i];
 		}
 		else if(!strcmp(argv[i], "-p")) {
-			if(++i < argc) prompt = argv[i];
+			if(++i < argc) conf.prompt = strdup(argv[i]);
 		}
 		else if(!strcmp(argv[i], "-sb")) {
 			if(++i < argc) selbgcolor = argv[i];
