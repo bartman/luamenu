@@ -4,10 +4,12 @@
 #include <lualib.h>
 #include <lauxlib.h>
 #include <stdarg.h>
+#include <string.h>
 
 // ------------------------------------------------------------------------
 // local helpers
 
+static void lm_stack_dump (const char *prefix, lua_State *L);
 static lua_State *lm_lua_handle(void);
 static void lm_lua_startup(lua_State *L);
 
@@ -128,3 +130,101 @@ void lm_lua_cleanup(void)
 	lua_close(the_lua_state);
 	the_lua_state = NULL;
 }
+
+// ------------------------------------------------------------------------
+
+static int lm_stack_sprint_value (char *buffer, int blen, lua_State *L, int idx)
+{
+	int rc, t = lua_type(L, idx);
+
+	if (!buffer || blen<0)
+		return -1;
+	*buffer = 0;
+
+	switch (t) {
+	case LUA_TNIL: /* nothing */
+		rc = snprintf(buffer, blen, "(NIL)");
+		break;
+
+	case LUA_TSTRING:  /* strings */
+		rc = snprintf(buffer, blen, "`%s'",
+				lua_tostring(L, idx));
+		break;
+
+	case LUA_TBOOLEAN:  /* booleans */
+		rc = snprintf(buffer, blen, "%s",
+				lua_toboolean(L, idx) ? "TRUE" : "FALSE");
+		break;
+
+	case LUA_TNUMBER:  /* numbers */
+		rc = snprintf(buffer, blen, "%g",
+				lua_tonumber(L, idx));
+		break;
+
+	case LUA_TTABLE:   /* table */
+		rc = snprintf(buffer, blen, "table(%d)",
+				luaL_getn(L, idx));
+		break;
+
+	default:  /* other values */
+		rc = snprintf(buffer, blen, "%s",
+				lua_typename(L, t));
+		break;
+	}
+
+	return rc;
+}
+
+#define SD_TABLE_INDENT 16
+
+static void lm_stack_dump_at (const char *prefix, int level, lua_State *L,
+		int idx)
+{
+	char b[128];
+	char *p = NULL;
+	int prefixlen = strlen(prefix);
+	int rc, nlen, len;
+
+	rc = lm_stack_sprint_value(b, sizeof b, L, idx);
+	printf("%s - %s\n", prefix, b);
+
+	if (lua_type(L, idx) == LUA_TTABLE) {
+		/* table is in the stack at index 'idx' */
+		lua_pushnil(L);  /* first key */
+		while (lua_next(L, idx) != 0) {
+			/* uses 'key' (at index -2) and 'value' (at index -1) */
+			len = lm_stack_sprint_value(b, sizeof b, L, -2);
+
+			nlen = len + prefixlen + 16 + SD_TABLE_INDENT;
+			p = realloc(p, nlen);
+			rc = snprintf(p, nlen, "%s   [%s]%*s",
+					prefix, b,
+					len>=SD_TABLE_INDENT ? 0
+					: SD_TABLE_INDENT - len, "");
+			lm_stack_dump_at(p, level+1, L, -1);
+
+			/* removes 'value'; keeps 'key' for next iteration */
+			lua_pop(L, 1);
+		}
+	}
+
+	free(p);
+}
+
+static void lm_stack_dump (const char *prefix, lua_State *L)
+{
+	int idx;
+	int top = lua_gettop(L);
+
+	fflush (stdout);
+	fprintf (stderr, "%s--- stack ---\n", prefix);
+
+	for (idx = 1; idx <= top; idx++) {  /* repeat for each level */
+		lm_stack_dump_at (prefix, 0, L, idx);
+	}
+
+	fprintf (stderr, "%s-------------\n", prefix);
+
+	lua_settop(L, top);
+}
+
