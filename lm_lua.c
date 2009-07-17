@@ -99,6 +99,157 @@ bool lm_is_lua_running(void)
 // ------------------------------------------------------------------------
 // exported luamenu table to lua
 
+typedef int (lm_var_handler_fn)(lua_State *L);
+
+static int lm_luamenu_get_words(lua_State *L)
+{
+	fprintf(stderr, "%s\n", __FUNCTION__);
+	return 0;
+}
+
+static int lm_luamenu_set_words(lua_State *L)
+{
+	fprintf(stderr, "%s\n", __FUNCTION__);
+	return 0;
+}
+
+static struct luamenu_var {
+	const char *name;
+	int type;
+	union {
+		void             *ptr;
+		lm_conf_string_t *str;
+		lm_conf_number_t *num;
+		lm_var_handler_fn *rfn;
+		lm_var_handler_fn *wfn;
+	} u;
+} luamenu_var_table[] = {
+	{
+		.name = "prompt",
+		.type = LUA_TSTRING,
+		.u.str = &conf.prompt
+	},
+	{
+		.name = "lines",
+		.type = LUA_TNUMBER,
+		.u.num = &conf.lines
+	},
+	{
+		.name = "words",
+		.type = LUA_TFUNCTION,
+		.u.rfn = &lm_luamenu_get_words,
+		.u.wfn = &lm_luamenu_set_words
+	},
+	{
+		.name = NULL,
+		.type = -1,
+	},
+
+};
+
+/* called to handle reads on table.member
+ * stack[-2] = table
+ * stack[-1] = member */
+static int lm_luamenu_index(lua_State *L)
+{
+	struct luamenu_var *hdlr;
+	const char *member = luaL_checkstring(L, -2);
+
+#if 1
+	fprintf(stderr, "%s '%s'\n", __FUNCTION__, member);
+	lm_stack_dump("# new ", L);
+#endif
+
+	for (hdlr = luamenu_var_table; hdlr->name; hdlr++)
+		if (!strcmp(hdlr->name, member))
+			break;
+	if (!hdlr->name)
+		lm_die("luamenu: luamenu.%s is not valid\n",
+				member);
+
+	if (!hdlr->u.ptr) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	switch (hdlr->type) {
+	case LUA_TSTRING: {
+		lm_conf_string_t *ptr = hdlr->u.str;
+
+		if (*ptr)
+			lua_pushstring(L, *ptr);
+		else
+			lua_pushnil(L);
+		break;
+	}
+	case LUA_TNUMBER: {
+		lm_conf_number_t *ptr = hdlr->u.num;
+
+		lua_pushnumber(L, *ptr);
+		break;
+	}
+
+	case LUA_TFUNCTION: {
+		lm_var_handler_fn *rfn = hdlr->u.rfn;
+
+		return rfn(L);
+		break;
+	}
+	}
+
+	return 1;
+}
+
+/* called to handle table.member = value
+ * stack[-3] = table
+ * stack[-2] = member
+ * stack[-1] = value */
+static int lm_luamenu_newindex(lua_State *L)
+{
+	struct luamenu_var *hdlr;
+	const char *member = luaL_checkstring(L, -2);
+
+#if 1
+	char strv[128];
+	lm_stack_sprint_value(strv, sizeof strv, L, -1);
+	fprintf(stderr, "%s '%s' = %s\n", __FUNCTION__, member, strv);
+	lm_stack_dump("# new ", L);
+#endif
+
+	for (hdlr = luamenu_var_table; hdlr->name; hdlr++)
+		if (!strcmp(hdlr->name, member))
+			break;
+	if (!hdlr->name)
+		lm_die("luamenu: luamenu.%s is not valid\n",
+				member);
+
+	switch (hdlr->type) {
+	case LUA_TSTRING: {
+		lm_conf_string_t *ptr = hdlr->u.str;
+		const char *val = luaL_checkstring(L, -1);
+
+		free(*ptr);
+		*ptr = strdup(val);
+		break;
+	}
+	case LUA_TNUMBER: {
+		lm_conf_number_t *ptr = hdlr->u.num;
+		lm_conf_number_t val = luaL_checklong(L, -1);
+
+		*ptr = val;
+		break;
+	}
+
+	case LUA_TFUNCTION: {
+		lm_var_handler_fn *wfn = hdlr->u.wfn;
+
+		return wfn(L);
+	}
+	}
+
+	return 0;
+}
+
 #if 0
 static int lm_luamenu_tostring(lua_State *L)
 {
@@ -112,75 +263,12 @@ static int lm_luamenu_gc(lua_State *L)
 }
 #endif
 
-static int lm_luamenu_index(lua_State *L)
-{
-	fprintf(stderr, "%s\n", __FUNCTION__);
-	return 0;
-}
-
-/* called to handle table.member = value
- * stack[-3] = table
- * stack[-2] = member
- * stack[-1] = value */
-static int lm_luamenu_newindex(lua_State *L)
-{
-	const char *member = luaL_checkstring(L, -2);
-	char strv[128];
-	lm_stack_sprint_value(strv, sizeof strv, L, -1);
-	fprintf(stderr, "%s '%s' = %s\n", __FUNCTION__, member, strv);
-
-	if (!strcmp(member, "prompt")) {
-
-		const char *val = luaL_checkstring(L, -1);
-
-		free(conf.prompt);
-		conf.prompt = strdup(val);
-
-	} else if (!strcmp(member, "lines")) {
-
-		unsigned int val = luaL_checknumber(L, -1);
-
-		conf.lines = val;
-
-
-	} else if (!strcmp(member, "words")) {
-
-	}
-
-	lm_stack_dump("# new ", L);
-	return 0;
-}
-
-static int lm_luamenu_prompt(lua_State *L)
-{
-	fprintf(stderr, "%s\n", __FUNCTION__);
-	return 0;
-}
-
-static int lm_luamenu_lines(lua_State *L)
-{
-	fprintf(stderr, "%s\n", __FUNCTION__);
-	return 0;
-}
-
-static int lm_luamenu_words(lua_State *L)
-{
-	fprintf(stderr, "%s\n", __FUNCTION__);
-	return 0;
-}
-
 static int lm_luamenu_bind(lua_State *L)
 {
 	fprintf(stderr, "%s\n", __FUNCTION__);
 	return 0;
 }
 
-static const luaL_reg luamenu_var_table[] =
-{
-	{ "prompt",     lm_luamenu_prompt   },
-	{ "lines",      lm_luamenu_lines    },
-	{ "words",      lm_luamenu_words    },
-};
 static const luaL_reg luamenu_func_table[] =
 {
 #if 0
